@@ -27,6 +27,7 @@
 // }
 // --------------------------
 
+const default_config = @import("default_config");
 const std = @import("std");
 const maxInt = std.math.maxInt;
 
@@ -54,7 +55,16 @@ const HELP_MESSAGE =
     \\ 
 ;
 
-const DEFAULT_DATA_PATH = "notes_data.json";
+// NOTE: getenv("HOME") does not work at compile time
+// const DEFAULT_DATA_PATH = if (default_config.prodRelease) std.fs.path.join(std.heap.page_allocator, [_][]const u8{ std.posix.getenv("HOME").?, ".notes", "notesdb" }) else "notes_data.json";
+// const DEFAULT_DATA_PATH = if (default_config.prodRelease) std.fs.path.join(std.heap.page_allocator, &[_][]const u8{ "~", ".notes", "notesdb" }) else "notes_data.json";
+const DEFAULT_DATA_PATH = if (default_config.prodRelease) "~/.notes" else "notes_data.json";
+
+// if (default_config.prodRelease) {
+//     const DEFAULT_DATA_PATH = std.fs.path.join(.{std.posix.getenv("HOME").?, ".notes", "notesdb"});
+// } else {
+//     const DEFAULT_DATA_PATH = "notes_data.json";
+// }
 
 const ArgParseError = error{
     MissingRequiredArguments,
