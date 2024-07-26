@@ -3,22 +3,7 @@
 //! Stores in a common JSON file in the user home directory.
 
 // --------------------------
-// TODO:
-//
-// Actions:
-//    add
-//    update
-//    delete
-//    search (find)
-//    list
-//
-// Options:
-//    ~data file name (?)~
-//    data file path
-// --------------------------
-
-// --------------------------
-// Data file format
+// Data file format (JSON)
 // {
 //     "section A": [
 //          "note A",
@@ -55,16 +40,7 @@ const HELP_MESSAGE =
     \\ 
 ;
 
-// NOTE: getenv("HOME") does not work at compile time
-// const DEFAULT_DATA_PATH = if (default_config.prodRelease) std.fs.path.join(std.heap.page_allocator, [_][]const u8{ std.posix.getenv("HOME").?, ".notes", "notesdb" }) else "notes_data.json";
-// const DEFAULT_DATA_PATH = if (default_config.prodRelease) std.fs.path.join(std.heap.page_allocator, &[_][]const u8{ "~", ".notes", "notesdb" }) else "notes_data.json";
-const DEFAULT_DATA_PATH = if (default_config.prodRelease) "~/.notes" else "notes_data.json";
-
-// if (default_config.prodRelease) {
-//     const DEFAULT_DATA_PATH = std.fs.path.join(.{std.posix.getenv("HOME").?, ".notes", "notesdb"});
-// } else {
-//     const DEFAULT_DATA_PATH = "notes_data.json";
-// }
+var DEFAULT_DATA_PATH: []const u8 = undefined;
 
 const ArgParseError = error{
     MissingRequiredArguments,
@@ -396,6 +372,7 @@ const Notes = struct {
             switch (err) {
                 std.fs.File.OpenError.FileNotFound => {
                     // TODO: Create directory tree if missing.
+                    _ = try std.fs.cwd().makePath(std.fs.path.dirname(fname).?);
                     var _file = try std.fs.cwd().createFile(fname, .{
                         .read = true,
                         .exclusive = true,
@@ -406,7 +383,7 @@ const Notes = struct {
                     break :cr_file _file;
                 },
                 // TODO: Handle directory path errors?
-                else => unreachable,
+                else => return err,
             }
         };
         defer file.close();
@@ -466,26 +443,10 @@ const Notes = struct {
 
     /// Write or Create Notes data file
     pub fn writeOrCreateDataFile(self: *Notes, fname: []const u8) !void {
-        var file = std.fs.cwd().openFile(fname, .{
-            .mode = .write_only,
-        }) catch |err| cr_file: {
-            switch (err) {
-                std.fs.File.OpenError.FileNotFound => {
-                    // TODO: Create directory tree if missing.
-                    // QUESTION: Should we just createFile if we know we will erase any previous data? => probably.
-                    const _file = try std.fs.cwd().createFile(fname, .{
-                        // .read = true,
-                        .exclusive = true,
-                        .truncate = true, // Not required b/c of .exclusive ?
-                    });
-                    // try _file.writeAll("{}");
-                    // try _file.seekTo(0);
-                    break :cr_file _file;
-                },
-                // TODO: Handle directory path errors?
-                else => unreachable,
-            }
-        };
+        var file = try std.fs.cwd().createFile(fname, .{
+            .exclusive = false,
+            .truncate = true,
+        });
         defer file.close();
         var json_str = std.ArrayList(u8).init(self.gpa);
         defer json_str.deinit();
@@ -631,6 +592,12 @@ pub fn main() !void {
     const alloc = std.heap.page_allocator;
     const stdout = std.io.getStdOut().writer();
     const stderr = std.io.getStdErr().writer();
+
+    // NOTE: getenv("HOME") does not work at compile time
+    const path = try std.fs.path.join(alloc, &[_][]const u8{ std.posix.getenv("HOME").?, ".zig_notes", "zig_notesdb" });
+    defer alloc.free(path);
+    DEFAULT_DATA_PATH = if (default_config.USE_HOME) path else "notes_data.json";
+
     var opts = Opts{};
     defer opts.free(alloc);
     opts.parseArgsWithAlloc(alloc) catch |err| {
@@ -649,7 +616,10 @@ pub fn main() !void {
 
     var notes = Notes.init(alloc);
     // try _loadOrCreateNotesData(&notes.sections, opts.data_file.?, alloc);
-    try notes.loadOrCreateDataFile(opts.data_file.?, alloc);
+    notes.loadOrCreateDataFile(opts.data_file.?, alloc) catch |err| {
+        try stderr.print("(E): unable to load notes data from '{s}': {}\n", .{ opts.data_file.?, err });
+        std.process.exit(1);
+    };
     defer notes.deinit();
     // defer deinit_map(&notes, alloc);
     if (opts.show_all) {
@@ -661,6 +631,7 @@ pub fn main() !void {
         while (it.next()) |section| {
             try notes.format_section(section.key_ptr.*, stdout);
         }
+        std.process.exit(0);
     }
 
     if (opts.show_note) |note_id| {
@@ -689,7 +660,10 @@ pub fn main() !void {
             section.value_ptr.* = std.ArrayList([]const u8).init(alloc);
         }
         try section.value_ptr.append(try alloc.dupe(u8, opts.args.items[1]));
-        try notes.writeOrCreateDataFile(opts.data_file.?);
+        notes.writeOrCreateDataFile(opts.data_file.?) catch |err| {
+            try stderr.print("(E): unable to write notes data into '{s}': {}\n", .{ opts.data_file.?, err });
+            std.process.exit(1);
+        };
         std.process.exit(0);
     }
 
