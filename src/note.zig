@@ -32,6 +32,7 @@ const HELP_MESSAGE =
     \\   -f, --force             Force add entry for given positional arguments
     \\
     \\       --data-file [path]   Path to override data file location
+    \\       --show-data-file     Render path to default data file location
     \\
     \\ NOT YET SUPPORTED - Still a work in progress...
     \\   -u, --update [N]        Update note with id 'N'
@@ -59,6 +60,7 @@ const NotesError = error{
 const Opts = struct {
     verbose: bool = false,
     data_file: ?[]const u8 = null,
+    show_data_file: bool = false,
 
     list: bool = false,
     show_all: bool = false,
@@ -180,6 +182,8 @@ const Opts = struct {
                 }
                 self.data_file = try gpa.dupe(u8, args[argIdx]);
                 // try printNotSupportedOptionArg(args[argIdx - 1]);
+            } else if (matchOption(args[argIdx], "", "--show-data-file")) {
+                self.show_data_file = true;
             } else if (matchOption(args[argIdx], "-l", "--list")) {
                 self.list = true;
             } else if (matchOption(args[argIdx], "-a", "--all")) {
@@ -268,6 +272,9 @@ const Opts = struct {
         if (self.data_file == null) {
             self.data_file = try gpa.dupe(u8, DEFAULT_DATA_PATH);
         }
+        if (self.show_data_file) {
+            try stdout.print("(I): data file: {s}\n", .{self.data_file.?});
+        }
 
         if (self.args.items.len > 2) {
             try printTooManyArguments(self.args.items);
@@ -329,6 +336,86 @@ const Opts = struct {
     }
 };
 
+const SortedStringArrayMapEntry = struct {
+    key_ptr: *[]const u8,
+    value_ptr: *std.ArrayList([]const u8),
+};
+
+// TODO: Rename SortedStringArrayMap => SortedSectionsMap ?
+const SortedStringArrayMap = struct {
+    alloc: std.mem.Allocator,
+    hmap: std.StringHashMap(std.ArrayList([]const u8)),
+    sorted: std.ArrayList(SortedStringArrayMapEntry),
+
+    pub fn init(map: std.StringHashMap(std.ArrayList([]const u8)), alloc: std.mem.Allocator) SortedStringArrayMap {
+        var self = SortedStringArrayMap{
+            .alloc = alloc,
+            .hmap = map,
+            .sorted = std.ArrayList(SortedStringArrayMapEntry).init(alloc),
+        };
+        self.hmap.lockPointers();
+        return self;
+    }
+
+    pub fn deinit(self: *SortedStringArrayMap) void {
+        self.sorted.deinit();
+        self.hmap.unlockPointers();
+    }
+
+    pub fn sort(self: *SortedStringArrayMap) !void {
+        var itr = self.hmap.iterator();
+        while (itr.next()) |entry| {
+            const e = SortedStringArrayMapEntry{
+                .key_ptr = entry.key_ptr,
+                .value_ptr = entry.value_ptr,
+            };
+            try self.sorted.append(e);
+        }
+        std.mem.sort(SortedStringArrayMapEntry, self.sorted.items, {}, SortedStringArrayMap.entryLessThan);
+    }
+
+    fn entryLessThan(_: void, lhs: SortedStringArrayMapEntry, rhs: SortedStringArrayMapEntry) bool {
+        // Compare entries based on their key value
+        return std.mem.lessThan(u8, lhs.key_ptr.*, rhs.key_ptr.*);
+    }
+
+    // Render formatted string of sorted key value pairs
+    // Conforms with std.fmt module.
+    pub fn format(
+        self: SortedStringArrayMap,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        var b = std.ArrayList(u8).init(self.alloc);
+        defer b.deinit();
+        var bw = b.writer();
+
+        for (self.sorted.items) |entry| {
+            try bw.print(
+                \\Key: {s}
+                \\Values:
+                \\{s}
+                \\
+            , .{
+                entry.key_ptr.*,
+                entry.value_ptr.*,
+            });
+        }
+
+        try writer.print(
+            \\SortedStringArrayMap Entries:
+            \\
+            \\{s}
+        , .{
+            b.items,
+        });
+    }
+};
+
 // TODO: Use Notes object instead of loadOrCreateDataFile function below.
 // TODO: Add loadOrCreateDataFile equivalent function to Notes struct
 const Notes = struct {
@@ -372,6 +459,7 @@ const Notes = struct {
             switch (err) {
                 std.fs.File.OpenError.FileNotFound => {
                     // TODO: Create directory tree if missing.
+                    // FIXME: This breaks if fname == "file.ext" (no dirname)
                     _ = try std.fs.cwd().makePath(std.fs.path.dirname(fname).?);
                     var _file = try std.fs.cwd().createFile(fname, .{
                         .read = true,
@@ -497,9 +585,15 @@ const Notes = struct {
         var section_str = std.ArrayList(u8).init(self.gpa);
         var s_writer = section_str.writer();
         defer section_str.deinit();
-        var section_it = self.sections.keyIterator();
-        while (section_it.next()) |section| {
-            try s_writer.print("{s}, ", .{section.*});
+        // var section_it = self.sections.keyIterator();
+        // while (section_it.next()) |section| {
+        //     try s_writer.print("{s}, ", .{section.*});
+        // }
+        var sorted = SortedStringArrayMap.init(self.sections, self.gpa);
+        defer sorted.deinit();
+        try sorted.sort();
+        for (sorted.sorted.items) |section| {
+            try s_writer.print("{s}, ", .{section.key_ptr.*});
         }
 
         // TODO: Print total number of entries in header line?
@@ -596,7 +690,7 @@ pub fn main() !void {
     // NOTE: getenv("HOME") does not work at compile time
     const path = try std.fs.path.join(alloc, &[_][]const u8{ std.posix.getenv("HOME").?, ".zig_notes", "zig_notesdb" });
     defer alloc.free(path);
-    DEFAULT_DATA_PATH = if (default_config.USE_HOME) path else "notes_data.json";
+    DEFAULT_DATA_PATH = if (default_config.USE_HOME) path else "./notes_data.json";
 
     var opts = Opts{};
     defer opts.free(alloc);
@@ -626,9 +720,17 @@ pub fn main() !void {
         // try stdout.print("{}\n", .{notes});
         // std.process.exit(0);
         // var section_str = std.ArrayList(u8).init(alloc);
+
+        var sorted = SortedStringArrayMap.init(notes.sections, alloc);
+        defer sorted.deinit();
+        try sorted.sort();
+
         try stdout.writeAll("All notes:\n");
-        var it = notes.sections.iterator();
-        while (it.next()) |section| {
+        // var it = notes.sections.iterator();
+        // while (it.next()) |section| {
+        //     try notes.format_section(section.key_ptr.*, stdout);
+        // }
+        for (sorted.sorted.items) |section| {
             try notes.format_section(section.key_ptr.*, stdout);
         }
         std.process.exit(0);
