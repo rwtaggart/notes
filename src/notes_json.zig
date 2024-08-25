@@ -101,9 +101,7 @@ pub const SortedStringArrayMap = struct {
     }
 };
 
-// TODO: Use Notes object instead of loadOrCreateDataFile function below.
-// TODO: Add loadOrCreateDataFile equivalent function to Notes struct
-// TODO: Rename 'Notes' => 'NotesJson' and move to new file "json_notes.zig"
+// TODO: Rename 'Notes' => 'NotesJson'
 pub const Notes = struct {
     gpa: std.mem.Allocator = undefined,
     sections: std.StringHashMap(std.ArrayList([]const u8)) = undefined,
