@@ -42,6 +42,16 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addOptions("default_config", options);
 
+    // Add SQLite3 library path
+    // TODO: Incorporate the external dependency into the build process for cross-system support.
+    // TODO: Figure out how this works:
+    //       error: expected type 'Build.LazyPath', found '*const [16:0]u8'
+    //       exe.addIncludePath("/path/to/include");
+    //
+    // exe.addIncludePath("/path/to/include");
+    // exe.addLibraryPath("/opt/homebrew/Cellar/sqlite/3.46.0/lib");
+    // exe.linkSystemLibrary("sqlite3");
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
