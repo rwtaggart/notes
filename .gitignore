@@ -35,3 +35,5 @@ tmp_test
 # Build artifacts
 note
 note.o
+znote
+znote.o
