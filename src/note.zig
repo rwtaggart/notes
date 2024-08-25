@@ -20,7 +20,7 @@ pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
     const stderr = std.io.getStdErr().writer();
 
-    // NOTE: getenv("HOME") does not work at compile time
+    // NOTE: getenv("HOME") does not work at compile time (obviously).
     const path = try std.fs.path.join(alloc, &[_][]const u8{ std.posix.getenv("HOME").?, ".zig_notes", "zig_notes.db" });
     defer alloc.free(path);
 
@@ -50,26 +50,18 @@ pub fn main() !void {
         try stdout.print("(I): opts: {}\n", .{opts});
     }
 
-    // TODO: remove notesJson and rename 'notesdb' => 'notes'
-    var notes = notesJson.Notes.init(alloc);
-    defer notes.deinit();
-
+    // TODO: rename 'notesdb' => 'notes'?
     var notesdb = db.NotesDb.init(alloc, null, opts.data_file.?) catch |err| {
         try stderr.print("(E): unable to initialize notes database '{s}': {}\n", .{ opts.data_file.?, err });
         std.process.exit(1);
     };
     defer notesdb.deinit();
-    // notes.loadOrCreateDataFile(opts.data_file.?, alloc) catch |err| {
     notesdb.open_or_create_db() catch |err| {
         try stderr.print("(E): unable to load notes data from '{s}': {}\n", .{ opts.data_file.?, err });
         std.process.exit(1);
     };
     if (opts.show_all) {
-        // var sorted = notesJson.SortedStringArrayMap.init(notes.sections, alloc);
-        // defer sorted.deinit();
-        // try sorted.sort();
-
-        // TODO: rename 'notes_records' => 'notes' and remove notesJson.Notes above.
+        // TODO: rename 'notes_records' => 'notes'?
         const notes_records = notesdb.all_notes() catch |err| {
             switch (err) {
                 db.NotesDbError.InvalidDatabase,
@@ -82,36 +74,24 @@ pub fn main() !void {
                 else => unreachable,
             }
         };
-        defer notes.deinit();
+        defer {
+            for (notes_records.items) |record| {
+                record.deinit();
+            }
+            notes_records.deinit();
+        }
         var sorted = try notesdb.sort_sections(notes_records);
         defer sorted.deinit();
 
         try stdout.writeAll("All notes:\n");
         for (sorted.sorted.items) |section| {
-            // try notes.format_section(section.section_ptr.*, stdout);
             try stdout.print("{}", .{section});
         }
         std.process.exit(0);
     }
 
     if (opts.show_note) |note_id| {
-        // notes.format_entry(opts.args.items[0], note_id, stdout) catch |err| {
-        //     switch (err) {
-        //         notesJson.NotesError.MissingSection => {
-        //             try stderr.print("(E): No section named: '{s}'\n", .{opts.args.items[0]});
-        //             std.process.exit(1);
-        //         },
-        //         notesJson.NotesError.IndexOutOfRange => {
-        //             try stderr.print("(E): Note ID '{}' out of range for section '{s}'\n", .{ note_id, opts.args.items[0] });
-        //             std.process.exit(1);
-        //         },
-        //         else => {
-        //             try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
-        //             std.process.exit(1);
-        //         },
-        //     }
-        // };
-
+        // TODO: use notesdb.find_note() instead?
         const notes_records = notesdb.find_section(opts.args.items[0]) catch |err| {
             switch (err) {
                 db.SqlError.SqliteError,
@@ -125,6 +105,12 @@ pub fn main() !void {
                 else => unreachable,
             }
         };
+        defer {
+            for (notes_records.items) |record| {
+                record.deinit();
+            }
+            notes_records.deinit();
+        }
         if (note_id < 0 or note_id >= notes_records.items.len) {
             try stderr.print("(E): Note ID '{d}' out of range for section '{s}'\n", .{ note_id, opts.args.items[0] });
             std.process.exit(1);
@@ -150,31 +136,11 @@ pub fn main() !void {
                 else => unreachable,
             }
         };
-
-        // var section = try notes.sections.getOrPut(try alloc.dupe(u8, opts.args.items[0]));
-        // if (!section.found_existing) {
-        //     section.value_ptr.* = std.ArrayList([]const u8).init(alloc);
-        // }
-        // try section.value_ptr.append(try alloc.dupe(u8, opts.args.items[1]));
-        // notes.writeOrCreateDataFile(opts.data_file.?) catch |err| {
-        //     try stderr.print("(E): unable to write notes data into '{s}': {}\n", .{ opts.data_file.?, err });
-        //     std.process.exit(1);
-        // };
         std.process.exit(0);
         return error.NOT_YET_SUPPORTED;
     }
 
     if (opts.args.items.len == 1) {
-        // notes.format_section(opts.args.items[0], stdout) catch |err| {
-        //     switch (err) {
-        //         notesJson.NotesError.MissingSection => {
-        //             try stderr.print("(E): No section named: '{s}'\n", .{opts.args.items[0]});
-        //             std.process.exit(1);
-        //         },
-        //         else => unreachable,
-        //     }
-        // };
-
         const notes_records = notesdb.find_section(opts.args.items[0]) catch |err| {
             switch (err) {
                 db.SqlError.SqliteError,
@@ -188,19 +154,23 @@ pub fn main() !void {
                 else => unreachable,
             }
         };
-        defer notes.deinit();
+        defer {
+            for (notes_records.items) |record| {
+                record.deinit();
+            }
+            notes_records.deinit();
+        }
         var sorted = try notesdb.sort_sections(notes_records);
         defer sorted.deinit();
 
         for (sorted.sorted.items) |section| {
-            // try notes.format_section(section.section_ptr.*, stdout);
             try stdout.print("{}", .{section});
         }
         std.process.exit(0);
     }
 
     if (opts.list or opts.args.items.len == 0) {
-        try stdout.print("{}\n", .{notes});
+        try stdout.print("{}\n", .{notesdb});
         std.process.exit(0);
     }
 }
