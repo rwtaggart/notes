@@ -139,11 +139,11 @@ pub const Opts = struct {
     /// Follows the convention of std.process.argsAlloc() for memory management
     /// Caller owns the memory
     ///
-    /// TODO: Pass in an args:[][]u8 parameter instead of internally calling std.process.argsAlloc(gpa);
-    ///       Easier to test this function / struct.
+    /// USAGE:
+    ///   const args = try std.process.argsAlloc(alloc);
+    ///   defer std.process.argsFree(alloc, args);
+    ///   try opts.parseArgsWithAlloc(alloc, args);
     ///
-    ///       // const args = try std.process.argsAlloc(gpa);
-    ///       // defer std.process.argsFree(gpa, args);
     pub fn parseArgsWithAlloc(self: *Opts, gpa: std.mem.Allocator, args: [][]u8) !void {
         // FIXME: How do we handle a "missing" argument with a following valid option?
         const stdout = std.io.getStdOut().writer();
