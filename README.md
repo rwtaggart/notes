@@ -22,3 +22,14 @@ Simple command-line notes app
 
 # Dependencies
 Zig - [https://ziglang.org/](https://ziglang.org/)
+
+
+# Build
+Note: `zig build` requires additional parameters. Do not use `zig.build` yet.
+
+```sh
+zig build-exe -I /opt/homebrew/Cellar/sqlite/3.46.0/include -L /opt/homebrew/Cellar/sqlite/3.46.0/lib -lsqlite3 ./src/note.zig
+```
+
+_**Question:** How do I include c-library with cImport and zig build?_  
+See [discord post](https://discord.com/channels/605571803288698900/1274576428452548731) for details.
