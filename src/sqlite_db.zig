@@ -1,13 +1,14 @@
 //! Notes SQLite
 //! Notes interface for the SQLite database
 //!
-//! zig test -I /opt/homebrew/Cellar/sqlite/3.46.0/include -L /opt/homebrew/Cellar/sqlite/3.46.0/lib -lsqlite3 ./src/sqlite_db.zig
-//!
 //! SQLite Comments and References
 //! https://www.sqlite.org/cintro.html
 //!
 //! Note: C-Pointer [*c] can be cast into Optional Pointer ?*
 //! Note: Null-terminated C-string literals must be translated into Zig string literals with std.mem.span()
+//!
+//! USAGE:
+//!   zig test -I /opt/homebrew/Cellar/sqlite/3.46.0/include -L /opt/homebrew/Cellar/sqlite/3.46.0/lib -lsqlite3 ./src/sqlite_db.zig
 
 const std = @import("std");
 
