@@ -336,51 +336,13 @@ pub const NotesDb = struct {
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
         return notes;
     }
-    // pub fn find_note(self: NotesDb, section: []const u8) !NoteRecord {
-    //     // var note = NoteRecord{}
-    //     var notes = std.ArrayList(NoteRecord).init(self.gpa);
-    //     const sql = NotesSql{};
-    //     var stmt: ?*dbapi.sqlite3_stmt = null;
-    //     var sql_tail: ?*const u8 = null;
-
-    //     if (self.db == null) {
-    //         return NotesDbError.InvalidDatabase;
-    //     }
-    //     var sql_buffer = std.ArrayList(u8).init(self.gpa);
-    //     try sql_buffer.writer().print(sql.find_note, .{section});
-    //     defer sql_buffer.deinit();
-    //     const sql_z = try self.gpa.dupeZ(u8, sql_buffer.items);
-    //     defer self.gpa.free(sql_z);
-    //     try self.check_rc(dbapi.sqlite3_prepare_v2(self.db, sql_z, @intCast(sql_z.len), &stmt, &sql_tail), dbapi.SQLITE_OK);
-
-    //     var irows: i32 = 0;
-    //     var step_rc: i32 = dbapi.sqlite3_step(stmt);
-    //     while (step_rc == dbapi.SQLITE_ROW) : (step_rc = dbapi.sqlite3_step(stmt)) {
-    //         irows += 1;
-    //         var record = NoteRecord.init(self.gpa);
-    //         const col_count: i32 = dbapi.sqlite3_column_count(stmt);
-    //         if (col_count != 4) {
-    //             return NotesDbError.InvalidSchema;
-    //         }
-    //         var cidx: u8 = 0; // Only 4 columns
-    //         while (cidx < col_count) : (cidx += 1) {
-    //             const ctype: i32 = dbapi.sqlite3_column_type(stmt, cidx);
-    //             switch (cidx) {
-    //                 @intFromEnum(NotesColumns.record_id) => try NoteRecord.handleInt(ctype, cidx, stmt, &record.record_id),
-    //                 @intFromEnum(NotesColumns.section) => try NoteRecord.handleText(self.gpa, ctype, cidx, stmt, &record.section),
-    //                 @intFromEnum(NotesColumns.note_id) => try NoteRecord.handleInt(ctype, cidx, stmt, &record.note_id),
-    //                 @intFromEnum(NotesColumns.note) => try NoteRecord.handleText(self.gpa, ctype, cidx, stmt, &record.note),
-    //                 else => return NotesDbError.InvalidDataType,
-    //             }
-    //         }
-
-    //         try notes.append(record);
-    //     }
-    //     try self.check_rc(step_rc, dbapi.SQLITE_DONE);
-    //     try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
-    //     return notes;
-    // }
-    // }
+    pub fn find_note(self: NotesDb, section: []const u8, note_id: i32) !NoteRecord {
+        // TODO: move logic from note.zig into here?
+        _ = self;
+        _ = section;
+        _ = note_id;
+        return error.NOT_SUPPORTED;
+    }
 
     pub fn add_note(self: *NotesDb, section: []const u8, note_id: i32, note: []const u8) !void {
         const sql = NotesSql{};
@@ -418,7 +380,7 @@ pub const NotesDb = struct {
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
     }
 
-    pub fn sort_sections(self: *NotesDb, notes: std.ArrayList(NoteRecord)) !SortedSectionMap {
+    pub fn sort_sections(self: NotesDb, notes: std.ArrayList(NoteRecord)) !SortedSectionMap {
         var map = std.StringHashMap(std.ArrayList([]const u8)).init(self.gpa);
         // const _notes = try self.all_notes();
         for (notes.items) |record| {
@@ -458,6 +420,45 @@ pub const NotesDb = struct {
         try self.check_rc(dbapi.sqlite3_prepare_v2(self.db, sql.delete_all_notes, sql.find_all.len, &stmt, &sql_tail), dbapi.SQLITE_OK);
         try self.check_rc(dbapi.sqlite3_step(stmt), dbapi.SQLITE_DONE);
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
+    }
+
+    // Render formatted string of sorted section names
+    // Conforms with std.fmt module.
+    pub fn format(
+        self: NotesDb,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        const notes_records = try self.all_notes();
+        defer {
+            for (notes_records.items) |record| {
+                record.deinit();
+            }
+            notes_records.deinit();
+        }
+        var sorted = try self.sort_sections(notes_records);
+        defer sorted.deinit();
+
+        var section_str = std.ArrayList(u8).init(self.gpa);
+        defer section_str.deinit();
+        var s_writer = section_str.writer();
+        for (sorted.sorted.items) |section| {
+            try s_writer.print("{s}, ", .{section.section_ptr.*});
+        }
+
+        // TODO: Print total number of entries in header line?
+        try writer.print(
+            \\Notes has {} sections:
+            \\  {s}
+            \\
+        , .{
+            sorted.hmap.count(),
+            section_str.items,
+        });
     }
 };
 
@@ -824,5 +825,29 @@ test "Write single sorted sections" {
     for (sorted.sorted.items) |section| {
         try stdout.print("{}", .{section});
     }
+    try stdout.writeAll("\n");
+}
+
+test "Write sorted section names" {
+    // const expect = std.testing.expect;
+    // const eql = std.mem.eql;
+    const test_alloc = std.testing.allocator;
+    const fname = "./tmp_test/test_create.db";
+
+    const db: ?*dbapi.sqlite3 = null;
+    var notesdb = try NotesDb.init(test_alloc, db, fname);
+    defer notesdb.deinit();
+    try notesdb.open_or_create_db();
+    try notesdb.delete_all_notes();
+    try notesdb.close_db();
+    try notesdb.open_or_create_db();
+
+    try notesdb.add_note("B", 0, "B NOTE");
+    try notesdb.add_note("A", 0, "FIRST NOTE");
+    try notesdb.add_note("C", 0, "THIRD");
+    try notesdb.add_note("A", 1, "A NOTE");
+
+    try stdout.writeAll("(T): TEST - all note sections:\n");
+    try stdout.print("{}\n", .{notesdb});
     try stdout.writeAll("\n");
 }
