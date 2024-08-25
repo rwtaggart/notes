@@ -48,9 +48,12 @@ pub fn build(b: *std.Build) void {
     //       error: expected type 'Build.LazyPath', found '*const [16:0]u8'
     //       exe.addIncludePath("/path/to/include");
     //
-    // exe.addIncludePath("/path/to/include");
-    // exe.addLibraryPath("/opt/homebrew/Cellar/sqlite/3.46.0/lib");
-    // exe.linkSystemLibrary("sqlite3");
+    //       thread 2228929 panic: sub_path is expected to be relative to the build root, but was this absolute path:
+    //       '/opt/homebrew/Cellar/sqlite/3.46.0/include'.
+    //
+    exe.addIncludePath(b.path("/opt/homebrew/Cellar/sqlite/3.46.0/include"));
+    exe.addLibraryPath(b.path("/opt/homebrew/Cellar/sqlite/3.46.0/lib"));
+    exe.linkSystemLibrary("sqlite3");
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
