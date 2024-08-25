@@ -43,27 +43,17 @@ pub fn main() !void {
     }
 
     var notes = notesJson.Notes.init(alloc);
-    // try _loadOrCreateNotesData(&notes.sections, opts.data_file.?, alloc);
     notes.loadOrCreateDataFile(opts.data_file.?, alloc) catch |err| {
         try stderr.print("(E): unable to load notes data from '{s}': {}\n", .{ opts.data_file.?, err });
         std.process.exit(1);
     };
     defer notes.deinit();
-    // defer deinit_map(&notes, alloc);
     if (opts.show_all) {
-        // try stdout.print("{}\n", .{notes});
-        // std.process.exit(0);
-        // var section_str = std.ArrayList(u8).init(alloc);
-
         var sorted = notesJson.SortedStringArrayMap.init(notes.sections, alloc);
         defer sorted.deinit();
         try sorted.sort();
 
         try stdout.writeAll("All notes:\n");
-        // var it = notes.sections.iterator();
-        // while (it.next()) |section| {
-        //     try notes.format_section(section.key_ptr.*, stdout);
-        // }
         for (sorted.sorted.items) |section| {
             try notes.format_section(section.key_ptr.*, stdout);
         }
