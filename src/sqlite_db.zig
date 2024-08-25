@@ -442,3 +442,70 @@ test "NotesDb find section" {
     try expect(eql(u8, notes.items[0].section.?, "B"));
     try expect(eql(u8, notes.items[0].note.?, "B NOTE"));
 }
+
+test "NotesDb will not find all notes" {
+    const expect = std.testing.expect;
+    const test_alloc = std.testing.allocator;
+    const fname = "./tmp_test/test_create.db";
+
+    const db: ?*dbapi.sqlite3 = null;
+    var notesdb = try NotesDb.init(test_alloc, db, fname);
+    defer notesdb.deinit();
+    try notesdb.open_or_create_db();
+    try notesdb.delete_all_notes();
+    try notesdb.close_db();
+    // try notesdb.open_or_create_db();
+
+    var pass = false;
+    notesdb.add_note("A", 0, "FIRST NOTE") catch |err| {
+        switch (err) {
+            SqlError.SqliteError => pass = true,
+            else => try expect(false),
+        }
+    };
+    try expect(pass);
+}
+
+test "NotesDb will not find section" {
+    const expect = std.testing.expect;
+    const test_alloc = std.testing.allocator;
+    const fname = "./tmp_test/test_create.db";
+
+    const db: ?*dbapi.sqlite3 = null;
+    var notesdb = try NotesDb.init(test_alloc, db, fname);
+    defer notesdb.deinit();
+    try notesdb.open_or_create_db();
+    try notesdb.delete_all_notes();
+    try notesdb.close_db();
+
+    var pass = false;
+    _ = notesdb.find_section("B") catch |err| {
+        switch (err) {
+            SqlError.SqliteError => pass = true,
+            else => try expect(false),
+        }
+    };
+    try expect(pass);
+}
+
+test "NotesDb will not add a note" {
+    const expect = std.testing.expect;
+    const test_alloc = std.testing.allocator;
+    const fname = "./tmp_test/test_create.db";
+
+    const db: ?*dbapi.sqlite3 = null;
+    var notesdb = try NotesDb.init(test_alloc, db, fname);
+    defer notesdb.deinit();
+    try notesdb.open_or_create_db();
+    try notesdb.delete_all_notes();
+    try notesdb.close_db();
+
+    var pass = false;
+    _ = notesdb.add_note("A", 0, "BAD NOTE") catch |err| {
+        switch (err) {
+            SqlError.SqliteError => pass = true,
+            else => try expect(false),
+        }
+    };
+    try expect(pass);
+}
