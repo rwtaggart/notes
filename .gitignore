@@ -27,6 +27,11 @@ zig-cache/
 
 # App data
 notes_data.json
+notes_data.db
 
 # Test data
 tmp_test
+
+# Build artifacts
+note
+note.o
