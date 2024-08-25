@@ -1,5 +1,8 @@
 //! Opts
 //! Define Command-line options and positional arguments
+//!
+//! USAGE:
+//!   zig test src/opts.zig
 
 const HELP_MESSAGE =
     \\ usage note [options] [section] [note]
