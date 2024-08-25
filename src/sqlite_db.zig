@@ -164,9 +164,6 @@ pub const NotesDb = struct {
         }
         try self.check_rc(dbapi.sqlite3_prepare_v2(self.db, sql.find_all, sql.find_all.len, &stmt, &sql_tail), dbapi.SQLITE_OK);
 
-        // TODO: pass in ArrayList as arg so caller owns the memory.
-        // var notes = std.ArrayList(NoteRecord).init(self.gpa);
-
         var irows: i32 = 0;
         var step_rc: i32 = dbapi.sqlite3_step(stmt);
         while (step_rc == dbapi.SQLITE_ROW) : (step_rc = dbapi.sqlite3_step(stmt)) {
