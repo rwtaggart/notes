@@ -135,6 +135,22 @@ pub fn main() !void {
     }
 
     if (opts.add) {
+        const note_str = try alloc.dupe(u8, opts.args.items[1]);
+        defer alloc.free(note_str);
+        notesdb.add_note(opts.args.items[0], 0, note_str) catch |err| {
+            switch (err) {
+                db.SqlError.SqliteError,
+                db.NotesDbError.InvalidDatabase,
+                db.NotesDbError.InvalidSchema,
+                db.NotesDbError.InvalidDataType,
+                => {
+                    try stderr.print("(E): unable to write notes data into '{s}': {}\n", .{ opts.data_file.?, err });
+                    std.process.exit(1);
+                },
+                else => unreachable,
+            }
+        };
+
         // var section = try notes.sections.getOrPut(try alloc.dupe(u8, opts.args.items[0]));
         // if (!section.found_existing) {
         //     section.value_ptr.* = std.ArrayList([]const u8).init(alloc);
@@ -144,7 +160,7 @@ pub fn main() !void {
         //     try stderr.print("(E): unable to write notes data into '{s}': {}\n", .{ opts.data_file.?, err });
         //     std.process.exit(1);
         // };
-        // std.process.exit(0);
+        std.process.exit(0);
         return error.NOT_YET_SUPPORTED;
     }
 
