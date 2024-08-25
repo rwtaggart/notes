@@ -17,7 +17,7 @@ const HELP_MESSAGE =
     \\   -l, --list              List all sections
     \\   -a, --all               List all sections and notes
     \\   -n, --note   [N]        Return note with id 'N'.
-    \\   -f, --force             Force add entry for given positional arguments
+    \\       --force             Force add entry for given positional arguments
     \\
     \\       --data-file [path]   Path to override data file location
     \\       --show-data-file     Render path to default data file location
@@ -175,7 +175,7 @@ pub const Opts = struct {
                 self.list = true;
             } else if (matchOption(args[argIdx], "-a", "--all")) {
                 self.show_all = true;
-            } else if (matchOption(args[argIdx], "-f", "--force")) {
+            } else if (matchOption(args[argIdx], "", "--force")) {
                 self.force = true;
             } else if (matchOption(args[argIdx], "-n", "--note")) {
                 argIdx += 1;
