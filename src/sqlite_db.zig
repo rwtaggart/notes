@@ -11,14 +11,14 @@
 //!   zig test -I /opt/homebrew/Cellar/sqlite/3.46.0/include -L /opt/homebrew/Cellar/sqlite/3.46.0/lib -lsqlite3 ./src/sqlite_db.zig
 
 const std = @import("std");
-
-// TODO: replace stdout with logging (?)
-const stderr = std.io.getStdErr().writer();
-const stdout = std.io.getStdOut().writer();
-
 const dbapi = @cImport({
     @cInclude("sqlite3.h");
 });
+
+// TODO: replace stdout with logging (?)
+// Question: how do we do logging in zig?
+const stderr = std.io.getStdErr().writer();
+const stdout = std.io.getStdOut().writer();
 
 const NotesColumns = enum(u2) {
     record_id = 0,
@@ -80,11 +80,6 @@ pub const NotesDbError = error{
     InvalidSchema,
     InvalidDataType,
 };
-
-// const NotesSql = struct {
-//     // TEST 123
-//     create: []const u8 = "TEST",
-// };
 
 const NotesSql = struct {
     create: [:0]const u8 =
