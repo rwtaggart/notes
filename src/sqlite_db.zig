@@ -153,7 +153,8 @@ pub const NotesDb = struct {
         try self.check_rc(dbapi.sqlite3_close(self.db), dbapi.SQLITE_OK);
     }
 
-    pub fn all_notes(self: NotesDb, notes: *std.ArrayList(NoteRecord)) !void {
+    pub fn all_notes(self: NotesDb) !std.ArrayList(NoteRecord) {
+        var notes = std.ArrayList(NoteRecord).init(self.gpa);
         const sql = NotesSql{};
         var stmt: ?*dbapi.sqlite3_stmt = null;
         var sql_tail: ?*const u8 = null;
@@ -191,9 +192,11 @@ pub const NotesDb = struct {
         }
         try self.check_rc(step_rc, dbapi.SQLITE_DONE);
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
+        return notes;
     }
 
-    pub fn find_section(self: NotesDb, section: []const u8, notes: *std.ArrayList(NoteRecord)) !void {
+    pub fn find_section(self: NotesDb, section: []const u8) !std.ArrayList(NoteRecord) {
+        var notes = std.ArrayList(NoteRecord).init(self.gpa);
         const sql = NotesSql{};
         var stmt: ?*dbapi.sqlite3_stmt = null;
         var sql_tail: ?*const u8 = null;
@@ -236,6 +239,7 @@ pub const NotesDb = struct {
         }
         try self.check_rc(step_rc, dbapi.SQLITE_DONE);
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
+        return notes;
     }
     pub fn find_note() void {}
 
@@ -336,8 +340,8 @@ test "NotesDb find all notes (empty)" {
     try notesdb.close_db();
     try notesdb.open_or_create_db();
 
-    var notes = std.ArrayList(NoteRecord).init(test_alloc);
-    try notesdb.all_notes(&notes);
+    // var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    const notes = try notesdb.all_notes();
 
     try expect(notes.items.len == 0);
 }
@@ -361,14 +365,15 @@ test "NotesDb find all notes (4 records)" {
     try notesdb.add_note("B", 0, "B NOTE");
     try notesdb.add_note("C", 0, "THIRD");
 
-    var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    // var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    // try notesdb.all_notes(&notes);
+    const notes = try notesdb.all_notes();
     defer {
         for (notes.items) |note| {
             note.deinit();
         }
         notes.deinit();
     }
-    try notesdb.all_notes(&notes);
 
     try expect(notes.items.len == 4);
     try expect(notes.items[0].record_id == 0);
@@ -394,14 +399,15 @@ test "NotesDb add note " {
 
     try notesdb.add_note("A", 0, "FIRST NOTE");
 
-    var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    // var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    // try notesdb.all_notes(&notes);
+    const notes = try notesdb.all_notes();
     defer {
         for (notes.items) |note| {
             note.deinit();
         }
         notes.deinit();
     }
-    try notesdb.all_notes(&notes);
     try expect(notes.items.len == 1);
     try expect(notes.items[0].record_id == 0);
 }
@@ -425,14 +431,14 @@ test "NotesDb find section" {
     try notesdb.add_note("B", 0, "B NOTE");
     try notesdb.add_note("C", 0, "THIRD");
 
-    var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    // var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    const notes = try notesdb.find_section("B");
     defer {
         for (notes.items) |note| {
             note.deinit();
         }
         notes.deinit();
     }
-    try notesdb.find_section("B", &notes);
 
     try expect(notes.items.len == 1);
     try expect(notes.items[0].record_id == 2);
