@@ -97,7 +97,7 @@ const NotesSql = struct {
     find_section: [:0]const u8 = "SELECT * FROM notes WHERE section = '{s}';",
     find_note: [:0]const u8 = "SELECT * FROM notes WHERE section = '{s}' AND noteId = '{s}';",
 
-    add_note: [:0]const u8 = "INSERT INTO notes VALUES ({d}, '{s}', {d}, '{s}');",
+    add_note: [:0]const u8 = "INSERT INTO notes VALUES ({d}, '{s}', NULL, '{s}');",
 
     delete_all_notes: [:0]const u8 = "DROP TABLE notes;",
 };
