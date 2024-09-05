@@ -9,7 +9,7 @@
 //! BUILD
 //! zig build-exe -I /opt/homebrew/Cellar/sqlite/3.46.0/include -L /opt/homebrew/Cellar/sqlite/3.46.0/lib -lsqlite3 ./src/note.zig
 
-const default_config = @import("default_config.zig");
+const default_config = @import("default_config");
 const std = @import("std");
 const noteOpts = @import("opts.zig");
 const notesJson = @import("notes_json.zig");
