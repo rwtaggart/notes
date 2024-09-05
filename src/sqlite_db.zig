@@ -345,6 +345,8 @@ pub const NotesDb = struct {
     }
 
     pub fn add_note(self: *NotesDb, section: []const u8, note_id: i32, note: []const u8) !void {
+        // FIXME: TAKE OUT note_id parameter
+        _ = note_id;
         const sql = NotesSql{};
         var stmt: ?*dbapi.sqlite3_stmt = null;
         var sql_tail: ?*const u8 = null;
@@ -367,7 +369,7 @@ pub const NotesDb = struct {
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
 
         var sql_buffer = std.ArrayList(u8).init(self.gpa);
-        try sql_buffer.writer().print(sql.add_note, .{ n_rows, section, note_id, note });
+        try sql_buffer.writer().print(sql.add_note, .{ n_rows, section, note });
         defer sql_buffer.deinit();
         const sql_z = try self.gpa.dupeZ(u8, sql_buffer.items);
         defer self.gpa.free(sql_z);
@@ -691,7 +693,10 @@ test "NotesDb will not find all notes" {
     var pass = false;
     notesdb.add_note("A", 0, "FIRST NOTE") catch |err| {
         switch (err) {
-            SqlError.SqliteError => pass = true,
+            SqlError.SqliteError => {
+                pass = true;
+                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+            },
             else => try expect(false),
         }
     };
@@ -713,7 +718,10 @@ test "NotesDb will not find section" {
     var pass = false;
     _ = notesdb.find_section("B") catch |err| {
         switch (err) {
-            SqlError.SqliteError => pass = true,
+            SqlError.SqliteError => {
+                pass = true;
+                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+            },
             else => try expect(false),
         }
     };
@@ -735,7 +743,10 @@ test "NotesDb will not add a note" {
     var pass = false;
     _ = notesdb.add_note("A", 0, "BAD NOTE") catch |err| {
         switch (err) {
-            SqlError.SqliteError => pass = true,
+            SqlError.SqliteError => {
+                pass = true;
+                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+            },
             else => try expect(false),
         }
     };
