@@ -29,6 +29,28 @@ pub fn build(b: *std.Build) void {
     // running `zig build`).
     // b.installArtifact(lib);
 
+    const sqlite3 = b.dependency("SQLite3", .{ .target = target, .optimize = optimize });
+    const sqlite3_lib = b.addStaticLibrary(.{
+        .name = "SQLite3",
+        .target = target,
+        .optimize = optimize,
+    });
+
+    sqlite3_lib.addCSourceFiles(.{
+        .root = sqlite3.path(""),
+        .files = &.{
+            "sqlite3.c",
+        },
+        .flags = &.{
+            "-Wall",
+            "-Werror",
+        },
+    });
+    // TODO: Are these required and what are they for?
+    // sqlite3_lib.addIncludePath(sqlite3.path(""));
+    // sqlite3_lib.installHeadersDirectory(sqlite3.path(""), "", .{ .include_extensions = &.{"h"} });
+    b.installArtifact(sqlite3_lib);
+
     const exe = b.addExecutable(.{
         .name = "note",
         .root_source_file = b.path("src/note.zig"),
@@ -51,9 +73,19 @@ pub fn build(b: *std.Build) void {
     //       thread 2228929 panic: sub_path is expected to be relative to the build root, but was this absolute path:
     //       '/opt/homebrew/Cellar/sqlite/3.46.0/include'.
     //
-    exe.addIncludePath(b.path("/opt/homebrew/Cellar/sqlite/3.46.0/include"));
-    exe.addLibraryPath(b.path("/opt/homebrew/Cellar/sqlite/3.46.0/lib"));
-    exe.linkSystemLibrary("sqlite3");
+
+    // TAKE OUT:
+    // exe.addIncludePath(b.path("/opt/homebrew/Cellar/sqlite/3.46.0/include"));
+    // exe.addLibraryPath(b.path("/opt/homebrew/Cellar/sqlite/3.46.0/lib"));
+    // exe.linkSystemLibrary("sqlite3");
+
+    // const sqlite3lib = b.addStaticLibrary(.{
+    //     .name = "sqlite",
+    // });
+
+    // exe.linkLibC();
+    exe.linkLibrary(sqlite3_lib);
+    exe.addIncludePath(sqlite3_lib.getEmittedIncludeTree());
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
