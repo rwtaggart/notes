@@ -12,12 +12,13 @@ const HELP_MESSAGE =
     \\   note     title of note
     \\
     \\ OPTIONS
-    \\   -h, --help              Show this help message and exit
+    \\   -h, --help               Show this help message and exit
     \\
-    \\   -l, --list              List all sections
-    \\   -a, --all               List all sections and notes
-    \\   -n, --note   [N]        Return note with id 'N'.
-    \\       --force             Force add entry for given positional arguments
+    \\   -l, --list               List all sections
+    \\   -a, --all                List all sections and notes
+    \\   -n, --note   [N]         Return note with id 'N'.
+    \\   -u, --update [N] [note]  Update note with id 'N' and message 'note'
+    \\       --force              Force add entry for given positional arguments
     \\
     \\       --data-file [path]   Path to override data file location
     \\       --show-data-file     Render path to default data file location
@@ -26,9 +27,8 @@ const HELP_MESSAGE =
     \\   --data-file "{s}"
     \\
     \\ NOT YET SUPPORTED - Still a work in progress...
-    \\   -u, --update [N]        Update note with id 'N'
-    \\   -d, --delete [N]        Delete note with id 'N'
-    \\   -s, --search [pattern]  Search for note matching pattern
+    \\   -d, --delete [N]         Delete note with id 'N'
+    \\   -s, --search [pattern]   Search for note matching pattern
     \\ 
 ;
 
@@ -127,15 +127,15 @@ pub const Opts = struct {
         };
     }
 
-    fn matchOption(arg: []const u8, short: []const u8, long: []const u8) bool {
+    fn matchOption(arg: []const u8, short: ?[]const u8, long: []const u8) bool {
         // TODO: Add support for optional short or long parameters.
-        return std.mem.eql(u8, arg, short) or std.mem.eql(u8, arg, long);
+        return (if (short) |short_arg| std.mem.eql(u8, arg, short_arg) else false) or std.mem.eql(u8, arg, long);
     }
 
     fn checkArgValue(arg: []const u8) !void {
         const stderr = std.io.getStdErr().writer();
-        if (arg[0] == '-') {
-            try stderr.print("(W): Invalid option or positional argument value '{s}'.\n     Use '--force' to use this as a section name or entry value.\n", .{arg});
+        if (std.mem.eql(u8, arg, "") or arg[0] == '-') {
+            try stderr.print("(W): Invalid option or positional argument value '{s}'.\n     Use '--force' to use this as a section name, option value, or note contents.\n", .{arg});
             return ArgParseError.InvalidOption;
         }
     }
@@ -165,7 +165,7 @@ pub const Opts = struct {
                 defer msg_b.deinit();
                 try stdout.print("{s}\n", .{msg_b.items});
                 std.process.exit(0);
-            } else if (matchOption(args[argIdx], "", "--data-file")) {
+            } else if (matchOption(args[argIdx], null, "--data-file")) {
                 argIdx += 1;
                 if (argIdx >= args.len) {
                     try printMissingOptionArg(args[argIdx - 1]);
@@ -176,13 +176,13 @@ pub const Opts = struct {
                 }
                 self.data_file = try gpa.dupe(u8, args[argIdx]);
                 // try printNotSupportedOptionArg(args[argIdx - 1]);
-            } else if (matchOption(args[argIdx], "", "--show-data-file")) {
+            } else if (matchOption(args[argIdx], null, "--show-data-file")) {
                 self.show_data_file = true;
             } else if (matchOption(args[argIdx], "-l", "--list")) {
                 self.list = true;
             } else if (matchOption(args[argIdx], "-a", "--all")) {
                 self.show_all = true;
-            } else if (matchOption(args[argIdx], "", "--force")) {
+            } else if (matchOption(args[argIdx], null, "--force")) {
                 self.force = true;
             } else if (matchOption(args[argIdx], "-n", "--note")) {
                 argIdx += 1;
@@ -220,8 +220,6 @@ pub const Opts = struct {
                         else => return err,
                     }
                 };
-                try printNotSupportedOptionArg(args[argIdx - 1]);
-                std.process.exit(1);
             } else if (matchOption(args[argIdx], "-d", "--delete")) {
                 argIdx += 1;
                 if (argIdx >= args.len) {
@@ -273,7 +271,11 @@ pub const Opts = struct {
 
         if (self.args.items.len > 2) {
             try printTooManyArguments(self.args.items);
-            return ArgParseError.ExpectedOptionArgument;
+            return ArgParseError.TooManyArguments;
+        }
+        if (self.update != null and self.args.items.len != 2) {
+            try printMissingOptionArg("-u, --update");
+            return ArgParseError.MissingRequiredArguments;
         }
         if (!self.force) {
             for (self.args.items) |arg| {
@@ -331,11 +333,12 @@ pub const Opts = struct {
     }
 };
 
+// -------- TESTING --------
 test "handle option with missing required argument" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
     const stderr = std.io.getStdErr().writer();
-    // const stdout = std.io.getStdOut().writer();
+    const stdout = std.io.getStdOut().writer();
     // const args_str: [][]u8 = &.{"--note"};
     var args_str = std.ArrayList([]u8).init(test_alloc);
     try args_str.append(try test_alloc.dupe(u8, "")); // Shift for program name
@@ -354,6 +357,7 @@ test "handle option with missing required argument" {
         switch (err) {
             ArgParseError.ExpectedOptionArgument => {
                 pass = true;
+                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
             },
             ArgParseError.MissingRequiredArguments,
             ArgParseError.TooManyArguments,
@@ -375,7 +379,7 @@ test "handle option with incorrect required argument" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
     const stderr = std.io.getStdErr().writer();
-    // const stdout = std.io.getStdOut().writer();
+    const stdout = std.io.getStdOut().writer();
     // const args_str: [][]u8 = &.{"--note"};
     var args_str = std.ArrayList([]u8).init(test_alloc);
     try args_str.append(try test_alloc.dupe(u8, "")); // Shift for program name
@@ -395,6 +399,7 @@ test "handle option with incorrect required argument" {
         switch (err) {
             ArgParseError.InvalidNumber => {
                 pass = true;
+                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
             },
             ArgParseError.ExpectedOptionArgument,
             ArgParseError.MissingRequiredArguments,
@@ -448,4 +453,87 @@ test "handle option with correct required argument" {
         }
     };
     try expect(opts.show_note == 1);
+}
+
+test "handle update option with missing required argument" {
+    const expect = std.testing.expect;
+    const test_alloc = std.testing.allocator;
+    const stderr = std.io.getStdErr().writer();
+    const stdout = std.io.getStdOut().writer();
+    // const args_str: [][]u8 = &.{"--note"};
+    var args_str = std.ArrayList([]u8).init(test_alloc);
+    try args_str.append(try test_alloc.dupe(u8, "")); // Shift for program name
+    try args_str.append(try test_alloc.dupe(u8, "--update"));
+    try args_str.append(try test_alloc.dupe(u8, "1"));
+    defer {
+        for (args_str.items) |item| {
+            test_alloc.free(item);
+        }
+        args_str.deinit();
+    }
+    var opts = Opts{ .DEFAULT_DATA_PATH = "./tmp.json" };
+    defer opts.free(test_alloc);
+
+    var pass: bool = undefined;
+    pass = false;
+    opts.parseArgsWithAlloc(test_alloc, args_str.items) catch |err| {
+        switch (err) {
+            ArgParseError.MissingRequiredArguments => {
+                pass = true;
+                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+            },
+            ArgParseError.InvalidNumber,
+            ArgParseError.ExpectedOptionArgument,
+            ArgParseError.TooManyArguments,
+            ArgParseError.InvalidOption,
+            ArgParseError.NumberOverflow,
+            => return error.UnexpectedParseError,
+            else => {
+                try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
+                // std.process.exit(1);
+                return error.UnexpectedValue;
+            },
+        }
+    };
+    try expect(pass);
+}
+
+test "handle update option with correct required argument" {
+    const expect = std.testing.expect;
+    const test_alloc = std.testing.allocator;
+    const stderr = std.io.getStdErr().writer();
+    // const stdout = std.io.getStdOut().writer();
+    // const args_str: [][]u8 = &.{"--note"};
+    var args_str = std.ArrayList([]u8).init(test_alloc);
+    try args_str.append(try test_alloc.dupe(u8, "")); // Shift for program name
+    try args_str.append(try test_alloc.dupe(u8, "--update"));
+    try args_str.append(try test_alloc.dupe(u8, "1"));
+    try args_str.append(try test_alloc.dupe(u8, "UPDATE SECTION"));
+    try args_str.append(try test_alloc.dupe(u8, "UPDATE NOTE BLARG"));
+    defer {
+        for (args_str.items) |item| {
+            test_alloc.free(item);
+        }
+        args_str.deinit();
+    }
+    var opts = Opts{ .DEFAULT_DATA_PATH = "./tmp.json" };
+    defer opts.free(test_alloc);
+
+    opts.parseArgsWithAlloc(test_alloc, args_str.items) catch |err| {
+        switch (err) {
+            ArgParseError.ExpectedOptionArgument,
+            ArgParseError.MissingRequiredArguments,
+            ArgParseError.TooManyArguments,
+            ArgParseError.InvalidOption,
+            ArgParseError.InvalidNumber,
+            ArgParseError.NumberOverflow,
+            => return error.UnexpectedParseError,
+            else => {
+                try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
+                // std.process.exit(1);
+                return error.UnexpectedValue;
+            },
+        }
+    };
+    try expect(opts.update.? == 1);
 }

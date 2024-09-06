@@ -137,7 +137,30 @@ pub fn main() !void {
             }
         };
         std.process.exit(0);
-        return error.NOT_YET_SUPPORTED;
+    }
+
+    if (opts.update) |note_id| {
+        const note_str = try alloc.dupe(u8, opts.args.items[1]);
+        defer alloc.free(note_str);
+        notesdb.update_note(opts.args.items[0], note_id, note_str) catch |err| {
+            switch (err) {
+                db.NotesDbError.IndexOutOfRange => {
+                    try stderr.print("(E): Note ID '{d}' out of range for section '{s}' : {}\n", .{ note_id, opts.args.items[0], err });
+                    std.process.exit(1);
+                },
+                db.SqlError.SqliteError,
+                db.NotesDbError.InvalidDatabase,
+                db.NotesDbError.InvalidSchema,
+                db.NotesDbError.InvalidDataType,
+                => {
+                    try stderr.print("(E): unable to update notes data in '{s}': {}\n", .{ opts.data_file.?, err });
+                    std.process.exit(1);
+                },
+                else => unreachable,
+            }
+        };
+        try stdout.print("(I): updated note in section '{s}' ({d})\n", .{ opts.args.items[0], note_id });
+        std.process.exit(0);
     }
 
     if (opts.args.items.len == 1) {

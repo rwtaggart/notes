@@ -79,6 +79,7 @@ pub const NotesDbError = error{
     InvalidDatabase,
     InvalidSchema,
     InvalidDataType,
+    IndexOutOfRange,
 };
 
 const NotesSql = struct {
@@ -98,6 +99,7 @@ const NotesSql = struct {
     find_note: [:0]const u8 = "SELECT * FROM notes WHERE section = '{s}' AND noteId = '{s}';",
 
     add_note: [:0]const u8 = "INSERT INTO notes VALUES ({d}, '{s}', NULL, '{s}');",
+    update_note: [:0]const u8 = "UPDATE notes SET note = '{s}' WHERE notes.recordId == {d};",
 
     delete_all_notes: [:0]const u8 = "DROP TABLE notes;",
 };
@@ -398,9 +400,39 @@ pub const NotesDb = struct {
         return sorted;
     }
 
-    pub fn update_note(section: []const u8, note_id: u32) void {
-        _ = section;
-        _ = note_id;
+    pub fn update_note(self: *NotesDb, section: []const u8, note_id: i32, note: []const u8) !void {
+        const section_notes = try self.find_section(section);
+        defer {
+            for (section_notes.items) |record| {
+                record.deinit();
+            }
+            section_notes.deinit();
+        }
+        if (note_id < 0 or note_id >= section_notes.items.len) {
+            return NotesDbError.IndexOutOfRange;
+        }
+        const record_id = section_notes.items[@intCast(note_id)].record_id.?;
+
+        const sql = NotesSql{};
+        var stmt: ?*dbapi.sqlite3_stmt = null;
+        var sql_tail: ?*const u8 = null;
+
+        if (self.db == null) {
+            return NotesDbError.InvalidDatabase;
+        }
+
+        var sql_buffer = std.ArrayList(u8).init(self.gpa);
+        try sql_buffer.writer().print(sql.update_note, .{ note, record_id });
+        defer sql_buffer.deinit();
+        const sql_z = try self.gpa.dupeZ(u8, sql_buffer.items);
+        defer self.gpa.free(sql_z);
+
+        // TODO: use logging for debug?
+        // try stdout.print("(D): SQL: {s}\n", .{sql_z});
+
+        try self.check_rc(dbapi.sqlite3_prepare_v2(self.db, sql_z, @intCast(sql_z.len), &stmt, &sql_tail), dbapi.SQLITE_OK);
+        try self.check_rc(dbapi.sqlite3_step(stmt), dbapi.SQLITE_DONE);
+        try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
     }
 
     pub fn delete_note(section: []const u8, note_id: u32) void {
@@ -568,6 +600,75 @@ test "NotesDb add note " {
     }
     try expect(notes.items.len == 1);
     try expect(notes.items[0].record_id == 0);
+}
+
+test "NotesDb update note " {
+    const expect = std.testing.expect;
+    const eql = std.mem.eql;
+    const test_alloc = std.testing.allocator;
+    const fname = "./tmp_test/test_update.db";
+
+    const db: ?*dbapi.sqlite3 = null;
+    var notesdb = try NotesDb.init(test_alloc, db, fname);
+    defer notesdb.deinit();
+    try notesdb.open_or_create_db();
+    try notesdb.delete_all_notes();
+    try notesdb.close_db();
+    try notesdb.open_or_create_db();
+
+    try notesdb.add_note("A", 0, "Note 1");
+    try notesdb.add_note("A", 0, "Note NOT YET MODIFIED");
+    try notesdb.add_note("B", 0, "Note 3");
+    try notesdb.add_note("B", 0, "Note 4");
+
+    try notesdb.update_note("A", 1, "NOTE MODIFIED");
+
+    // var notes = std.ArrayList(NoteRecord).init(test_alloc);
+    // try notesdb.all_notes(&notes);
+    const notes = try notesdb.all_notes();
+    defer {
+        for (notes.items) |note| {
+            note.deinit();
+        }
+        notes.deinit();
+    }
+    try expect(notes.items[1].record_id == 1);
+    try expect(eql(u8, notes.items[1].section.?, "A"));
+    try expect(eql(u8, notes.items[1].note.?, "NOTE MODIFIED"));
+    try expect(eql(u8, notes.items[3].note.?, "Note 4"));
+
+    try expect(notes.items.len == 4);
+    try expect(notes.items[0].record_id == 0);
+}
+
+test "NotesDb update note out of range " {
+    const expect = std.testing.expect;
+    // const eql = std.mem.eql;
+    const test_alloc = std.testing.allocator;
+    const fname = "./tmp_test/test_update_broken.db";
+
+    const db: ?*dbapi.sqlite3 = null;
+    var notesdb = try NotesDb.init(test_alloc, db, fname);
+    defer notesdb.deinit();
+    try notesdb.open_or_create_db();
+    try notesdb.delete_all_notes();
+    try notesdb.close_db();
+    try notesdb.open_or_create_db();
+
+    try notesdb.add_note("A", 0, "Note 1");
+    try notesdb.add_note("A", 0, "Note 2");
+
+    var pass: bool = undefined;
+    pass = false;
+    notesdb.update_note("A", 2, "NOTE MODIFIED") catch |err| {
+        switch (err) {
+            NotesDbError.IndexOutOfRange => {
+                pass = true;
+            },
+            else => unreachable,
+        }
+    };
+    try expect(pass);
 }
 
 test "NotesDb find section" {
