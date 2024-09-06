@@ -22,6 +22,9 @@ const HELP_MESSAGE =
     \\       --data-file [path]   Path to override data file location
     \\       --show-data-file     Render path to default data file location
     \\
+    \\ DEFAULTS:
+    \\   --data-file "{s}"
+    \\
     \\ NOT YET SUPPORTED - Still a work in progress...
     \\   -u, --update [N]        Update note with id 'N'
     \\   -d, --delete [N]        Delete note with id 'N'
@@ -148,7 +151,8 @@ pub const Opts = struct {
     ///   try opts.parseArgsWithAlloc(alloc, args);
     ///
     pub fn parseArgsWithAlloc(self: *Opts, gpa: std.mem.Allocator, args: [][]u8) !void {
-        // FIXME: How do we handle a "missing" argument with a following valid option?
+        // FIXME: How do we handle a "missing" argument with a following valid option?  => DONE ?
+        // TODO: move gpa => self.gpa as struct attibute
         const stdout = std.io.getStdOut().writer();
         const stderr = std.io.getStdOut().writer();
         self.args = std.ArrayList([]const u8).init(gpa);
@@ -156,7 +160,10 @@ pub const Opts = struct {
         var argIdx: u8 = 1;
         while (argIdx < args.len) : (argIdx += 1) {
             if (matchOption(args[argIdx], "-h", "--help")) {
-                try stdout.print("{s}\n", .{HELP_MESSAGE});
+                var msg_b = std.ArrayList(u8).init(gpa);
+                try msg_b.writer().print(HELP_MESSAGE, .{self.DEFAULT_DATA_PATH});
+                defer msg_b.deinit();
+                try stdout.print("{s}\n", .{msg_b.items});
                 std.process.exit(0);
             } else if (matchOption(args[argIdx], "", "--data-file")) {
                 argIdx += 1;
