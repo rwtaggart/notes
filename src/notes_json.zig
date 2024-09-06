@@ -1,3 +1,4 @@
+//! DEPRECATED – DO NOT USE
 //! NotesJson
 //! Store Notes data with JSON data file format
 //!
