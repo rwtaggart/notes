@@ -19,6 +19,7 @@ const HELP_MESSAGE =
     \\   -n, --note   [N]         Return note with id 'N'.
     \\   -u, --update [N] [note]  Update note with id 'N' and message 'note'
     \\   -d, --delete [N]         Delete note with id 'N'
+    \\   -s, --search [pattern]   Search for note matching pattern
     \\       --force              Force add entry for given positional arguments
     \\
     \\       --data-file [path]   Path to override data file location
@@ -28,7 +29,6 @@ const HELP_MESSAGE =
     \\   --data-file "{s}"
     \\
     \\ NOT YET SUPPORTED - Still a work in progress...
-    \\   -s, --search [pattern]   Search for note matching pattern
     \\ 
 ;
 
@@ -248,8 +248,6 @@ pub const Opts = struct {
                     try checkArgValue(args[argIdx]);
                 }
                 self.search = try gpa.dupe(u8, args[argIdx]);
-                try printNotSupportedOptionArg(args[argIdx - 1]);
-                std.process.exit(1);
             } else if (matchOption(args[argIdx], "-v", "--verbose")) {
                 self.verbose = true;
             } else {

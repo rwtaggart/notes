@@ -187,6 +187,35 @@ pub fn main() !void {
         std.process.exit(0);
     }
 
+    if (opts.search) |search| {
+        const notes_records = notesdb.search_notes(search) catch |err| {
+            switch (err) {
+                db.NotesDbError.InvalidDatabase,
+                db.NotesDbError.InvalidSchema,
+                db.NotesDbError.InvalidDataType,
+                => {
+                    try stderr.print("(E): unable to load notes data from '{s}': {}\n", .{ opts.data_file.?, err });
+                    std.process.exit(0);
+                },
+                else => unreachable,
+            }
+        };
+        defer {
+            for (notes_records.items) |record| {
+                record.deinit();
+            }
+            notes_records.deinit();
+        }
+        var sorted = try notesdb.sort_sections(notes_records);
+        defer sorted.deinit();
+
+        try stdout.writeAll("All notes:\n");
+        for (sorted.sorted.items) |section| {
+            try stdout.print("{}", .{section});
+        }
+        std.process.exit(0);
+    }
+
     if (opts.args.items.len == 1) {
         const notes_records = notesdb.find_section(opts.args.items[0]) catch |err| {
             switch (err) {

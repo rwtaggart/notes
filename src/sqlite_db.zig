@@ -69,6 +69,31 @@ pub const NoteRecord = struct {
             },
         }
     }
+
+    /// Create string formatter compatible with std.fmt package.
+    pub fn format(
+        self: NoteRecord,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        try writer.print(
+            \\NoteRecord:
+            \\  record_id: {?d},
+            \\  section: {?s},
+            \\  note_id: {?d},
+            \\  note: {?s},
+            \\
+        , .{
+            self.record_id,
+            self.section,
+            self.note_id,
+            self.note,
+        });
+    }
 };
 
 pub const SqlError = error{
@@ -99,7 +124,10 @@ const NotesSql = struct {
     find_section: [:0]const u8 = "SELECT * FROM notes WHERE section = '{s}';",
     find_note: [:0]const u8 = "SELECT * FROM notes WHERE section = '{s}' AND noteId = '{s}';",
 
-    add_note: [:0]const u8 = "INSERT INTO notes VALUES ({d}, '{s}', NULL, '{s}');",
+    search_notes: [:0]const u8 = "SELECT * FROM notes WHERE note like ?1;",
+
+    // add_note: [:0]const u8 = "INSERT INTO notes VALUES ({d}, '{s}', NULL, '{s}');",
+    add_note: [:0]const u8 = "INSERT INTO notes VALUES (?1, ?2, NULL, ?3);",
     update_note: [:0]const u8 = "UPDATE notes SET note = '{s}' WHERE notes.recordId == {d};",
     delete_note: [:0]const u8 = "DELETE FROM notes WHERE recordId == {d};",
 
@@ -238,6 +266,10 @@ pub const NotesDb = struct {
         }
     }
 
+    fn check_OK(self: NotesDb, rc: i32) !void {
+        return self.check_rc(rc, dbapi.SQLITE_OK);
+    }
+
     pub fn open_or_create_db(self: *NotesDb) !void {
         const sql = NotesSql{};
         var stmt: ?*dbapi.sqlite3_stmt = null;
@@ -348,6 +380,66 @@ pub const NotesDb = struct {
         return error.NOT_SUPPORTED;
     }
 
+    pub fn search_notes(self: NotesDb, search: []const u8) !std.ArrayList(NoteRecord) {
+        var notes = std.ArrayList(NoteRecord).init(self.gpa);
+        const sql = NotesSql{};
+        var stmt: ?*dbapi.sqlite3_stmt = null;
+        var sql_tail: ?*const u8 = null;
+
+        if (self.db == null) {
+            return NotesDbError.InvalidDatabase;
+        }
+
+        var search_buffer = std.ArrayList(u8).init(self.gpa);
+        defer search_buffer.deinit();
+        try search_buffer.writer().print("%{s}%", .{search});
+        const search_z = try self.gpa.dupeZ(u8, search_buffer.items);
+        defer self.gpa.free(search_z);
+
+        try self.check_rc(dbapi.sqlite3_prepare_v2(self.db, sql.search_notes, sql.search_notes.len, &stmt, &sql_tail), dbapi.SQLITE_OK);
+
+        try self.check_rc(dbapi.sqlite3_bind_text(
+            stmt,
+            1,
+            search_z,
+            @intCast(search_z.len),
+            dbapi.SQLITE_STATIC,
+        ), dbapi.SQLITE_OK);
+
+        // TODO: Add logging for debug
+        // const sql_z = dbapi.sqlite3_sql(stmt);
+        // const sql_bind_z = dbapi.sqlite3_expanded_sql(stmt);
+        // defer dbapi.sqlite3_free(sql_bind_z);
+        // try stdout.print("(D): SQL:      {s}\n     BIND SQL: {s}\n", .{ sql_z, sql_bind_z });
+
+        var irows: i32 = 0;
+        var step_rc: i32 = dbapi.sqlite3_step(stmt);
+        while (step_rc == dbapi.SQLITE_ROW) : (step_rc = dbapi.sqlite3_step(stmt)) {
+            irows += 1;
+            var record = NoteRecord.init(self.gpa);
+            const col_count: i32 = dbapi.sqlite3_column_count(stmt);
+            if (col_count != 4) {
+                return NotesDbError.InvalidSchema;
+            }
+            var cidx: u8 = 0; // Only 4 columns
+            while (cidx < col_count) : (cidx += 1) {
+                const ctype: i32 = dbapi.sqlite3_column_type(stmt, cidx);
+                switch (cidx) {
+                    @intFromEnum(NotesColumns.record_id) => try NoteRecord.handleInt(ctype, cidx, stmt, &record.record_id),
+                    @intFromEnum(NotesColumns.section) => try NoteRecord.handleText(self.gpa, ctype, cidx, stmt, &record.section),
+                    @intFromEnum(NotesColumns.note_id) => try NoteRecord.handleInt(ctype, cidx, stmt, &record.note_id),
+                    @intFromEnum(NotesColumns.note) => try NoteRecord.handleText(self.gpa, ctype, cidx, stmt, &record.note),
+                    else => return NotesDbError.InvalidDataType,
+                }
+            }
+
+            try notes.append(record);
+        }
+        try self.check_rc(step_rc, dbapi.SQLITE_DONE);
+        try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
+        return notes;
+    }
+
     pub fn add_note(self: *NotesDb, section: []const u8, note_id: i32, note: []const u8) !void {
         // FIXME: TAKE OUT note_id parameter
         _ = note_id;
@@ -377,16 +469,51 @@ pub const NotesDb = struct {
         try self.check_rc(dbapi.sqlite3_step(stmt), dbapi.SQLITE_DONE);
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
 
-        var sql_buffer = std.ArrayList(u8).init(self.gpa);
-        try sql_buffer.writer().print(sql.add_note, .{ next_id, section, note });
-        defer sql_buffer.deinit();
-        const sql_z = try self.gpa.dupeZ(u8, sql_buffer.items);
-        defer self.gpa.free(sql_z);
+        // var sql_buffer = std.ArrayList(u8).init(self.gpa);
+        // try sql_buffer.writer().print(sql.add_note, .{ next_id, section, note });
+        // defer sql_buffer.deinit();
+
+        // try self.check_OK(dbapi.sqlite3_bind_text());
 
         // TODO: use logging for debug?
         // try stdout.print("(D): SQL: {s}\n", .{sql_z});
 
-        try self.check_rc(dbapi.sqlite3_prepare_v2(self.db, sql_z, @intCast(sql_z.len), &stmt, &sql_tail), dbapi.SQLITE_OK);
+        try self.check_rc(dbapi.sqlite3_prepare_v2(self.db, sql.add_note, @intCast(sql.add_note.len), &stmt, &sql_tail), dbapi.SQLITE_OK);
+
+        try self.check_rc(dbapi.sqlite3_bind_int(
+            stmt,
+            1,
+            next_id,
+        ), dbapi.SQLITE_OK);
+
+        const section_z = try self.gpa.dupeZ(u8, section);
+        defer self.gpa.free(section_z);
+
+        try self.check_rc(dbapi.sqlite3_bind_text(
+            stmt,
+            2,
+            section_z,
+            @intCast(section_z.len),
+            dbapi.SQLITE_STATIC,
+        ), dbapi.SQLITE_OK);
+
+        const note_z = try self.gpa.dupeZ(u8, note);
+        defer self.gpa.free(note_z);
+
+        try self.check_rc(dbapi.sqlite3_bind_text(
+            stmt,
+            3,
+            note_z,
+            @intCast(note_z.len),
+            dbapi.SQLITE_STATIC,
+        ), dbapi.SQLITE_OK);
+
+        // TODO: Add logging for debug
+        // const sql_z = dbapi.sqlite3_sql(stmt);
+        // const sql_bind_z = dbapi.sqlite3_expanded_sql(stmt);
+        // defer dbapi.sqlite3_free(sql_bind_z);
+        // try stdout.print("(D): SQL:      {s}\n     BIND SQL: {s}\n", .{ sql_z, sql_bind_z });
+
         try self.check_rc(dbapi.sqlite3_step(stmt), dbapi.SQLITE_DONE);
         try self.check_rc(dbapi.sqlite3_finalize(stmt), dbapi.SQLITE_OK);
     }
@@ -600,6 +727,11 @@ test "NotesDb find all notes (4 records)" {
             note.deinit();
         }
         notes.deinit();
+    }
+
+    try stdout.print("(D): found {d} records\n", .{notes.items.len});
+    for (notes.items) |note| {
+        try stdout.print("(D): note: {s}\n", .{note});
     }
 
     try expect(notes.items.len == 4);
