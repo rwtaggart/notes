@@ -28,8 +28,6 @@ const HELP_MESSAGE =
     \\ DEFAULTS:
     \\   --data-file "{s}"
     \\
-    \\ NOT YET SUPPORTED - Still a work in progress...
-    \\ 
 ;
 
 const std = @import("std");
