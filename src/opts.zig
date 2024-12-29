@@ -19,7 +19,7 @@ const HELP_MESSAGE =
     \\   -n, --note   [N]         Return note with id 'N'.
     \\   -u, --update [N] [note]  Update note with id 'N' and message 'note'
     \\   -d, --delete [N]         Delete note with id 'N'
-    \\   -s, --search [pattern]   Search for note matching pattern
+    \\   -s, --search [pattern]   Search for note matching pattern (case insensitive)
     \\       --force              Force add entry for given positional arguments
     \\
     \\       --data-file [path]   Path to override data file location

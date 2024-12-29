@@ -209,7 +209,14 @@ pub fn main() !void {
         var sorted = try notesdb.sort_sections(notes_records);
         defer sorted.deinit();
 
-        try stdout.writeAll("All notes:\n");
+        try stdout.print(
+            "Search for '{s}' found {d} sections with {d} notes:\n",
+            .{
+                search,
+                sorted.sorted.items.len,
+                notes_records.items.len,
+            },
+        );
         for (sorted.sorted.items) |section| {
             try stdout.print("{}", .{section});
         }
