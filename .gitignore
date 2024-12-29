@@ -37,3 +37,6 @@ note
 note.o
 znote
 znote.o
+
+# Project files
+sandbox/
