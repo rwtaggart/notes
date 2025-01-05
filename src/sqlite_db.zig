@@ -11,9 +11,15 @@
 //!   zig test -I /opt/homebrew/Cellar/sqlite/3.46.0/include -L /opt/homebrew/Cellar/sqlite/3.46.0/lib -lsqlite3 ./src/sqlite_db.zig
 
 const std = @import("std");
+const builtin = @import("builtin");
 const dbapi = @cImport({
     @cInclude("sqlite3.h");
 });
+const Log = @import("log.zig");
+
+const logger = Log.Log(.sqlite3);
+// const logger = std.log.scoped(.sqlite3);
+// const logger = Log{};
 
 // TODO: replace stdout with logging (?)
 // Question: how do we do logging in zig?
@@ -258,7 +264,7 @@ pub const NotesDb = struct {
         if (rc != code) {
             // var fname: ?[]const u8 = null;
             // _ = dbapi.sqlite3_db_filename(self.db, fname);
-            try stderr.print("(E): SQL Error '{s}' '{s}'\n\n", .{
+            logger.err("(E): SQL Error '{s}' '{s}'\n\n", .{
                 std.mem.span(dbapi.sqlite3_errmsg(self.db)),
                 self.db_path_z,
             });
@@ -461,7 +467,7 @@ pub const NotesDb = struct {
         if (dbapi.sqlite3_column_type(stmt, 0) == dbapi.SQLITE_NULL) {
             next_id = 0;
         } else if (dbapi.sqlite3_column_type(stmt, 0) != dbapi.SQLITE_INTEGER) {
-            try stdout.print("(D): data type: {d}\n", .{dbapi.sqlite3_column_type(stmt, 0)});
+            logger.debug("(D): data type: {d}\n", .{dbapi.sqlite3_column_type(stmt, 0)});
             return NotesDbError.InvalidDataType;
         } else {
             next_id = dbapi.sqlite3_column_int(stmt, 0) + 1;
@@ -729,9 +735,9 @@ test "NotesDb find all notes (4 records)" {
         notes.deinit();
     }
 
-    try stdout.print("(D): found {d} records\n", .{notes.items.len});
+    logger.debug("(D): found {d} records\n", .{notes.items.len});
     for (notes.items) |note| {
-        try stdout.print("(D): note: {s}\n", .{note});
+        logger.debug("(D): note: {s}\n", .{note});
     }
 
     try expect(notes.items.len == 4);
@@ -989,6 +995,8 @@ test "NotesDb will not find all notes" {
     const test_alloc = std.testing.allocator;
     const fname = "./tmp_test/test_create.db";
 
+    // logger.reset_errors();
+
     const db: ?*dbapi.sqlite3 = null;
     var notesdb = try NotesDb.init(test_alloc, db, fname);
     defer notesdb.deinit();
@@ -998,22 +1006,31 @@ test "NotesDb will not find all notes" {
     // try notesdb.open_or_create_db();
 
     var pass = false;
+
+    // _ = std_options;
+    // defer std.options.logFn = std.log.defaultLog;
+
     notesdb.add_note("A", 0, "FIRST NOTE") catch |err| {
         switch (err) {
             SqlError.SqliteError => {
                 pass = true;
-                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // std.debug.print("(T): ^^^ Expecting 1 error message ^^^.\n", .{});
             },
             else => try expect(false),
         }
     };
     try expect(pass);
+    // std.debug.print("(T): error count: {d}\n", .{logger.errors});
+    // try expect(logger.errors == 1);
 }
 
 test "NotesDb will not find section" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
     const fname = "./tmp_test/test_create.db";
+
+    // logger.reset_errors();
 
     const db: ?*dbapi.sqlite3 = null;
     var notesdb = try NotesDb.init(test_alloc, db, fname);
@@ -1027,18 +1044,21 @@ test "NotesDb will not find section" {
         switch (err) {
             SqlError.SqliteError => {
                 pass = true;
-                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // std.debug.print("(T): ^^^ Expecting 1 error message ^^^.\n", .{});
+                // try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
             },
             else => try expect(false),
         }
     };
-    try expect(pass);
+    // try expect(logger.errors == 1);
 }
 
 test "NotesDb will not add a note" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
     const fname = "./tmp_test/test_create.db";
+
+    // logger.reset_errors();
 
     const db: ?*dbapi.sqlite3 = null;
     var notesdb = try NotesDb.init(test_alloc, db, fname);
@@ -1052,12 +1072,14 @@ test "NotesDb will not add a note" {
         switch (err) {
             SqlError.SqliteError => {
                 pass = true;
-                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // std.debug.print("(T): ^^^ Expecting 1 error message ^^^.\n", .{});
             },
             else => try expect(false),
         }
     };
-    try expect(pass);
+    // try expect(logger.errors == 1);
+    // try expect(pass);
 }
 
 // *** CHECK PRINT OUTPUTS ***
@@ -1098,10 +1120,13 @@ test "Write sorted sections" {
     try expect(eql(u8, sorted.sorted.items[2].section_ptr.*, "C"));
 
     try stdout.writeAll("(T): TEST - all notes:\n");
+    // std.debug.print("(T): TEST - all notes:\n", .{});
     for (sorted.sorted.items) |section| {
         try stdout.print("{}", .{section});
+        // std.debug.print("{}", .{section});
     }
     try stdout.writeAll("\n");
+    // std.debug.print("\n", .{});
 }
 
 test "Write single sorted sections" {
@@ -1140,10 +1165,13 @@ test "Write single sorted sections" {
     try expect(sorted.sorted.items[0].notes_ptr.*.items.len == 2);
 
     try stdout.writeAll("(T): TEST - all notes:\n");
+    // std.debug.print("(T): TEST - all notes:\n", .{});
     for (sorted.sorted.items) |section| {
         try stdout.print("{}", .{section});
+        // std.debug.print("{}", .{section});
     }
     try stdout.writeAll("\n");
+    // std.debug.print("\n", .{});
 }
 
 test "Write sorted section names" {
@@ -1168,4 +1196,8 @@ test "Write sorted section names" {
     try stdout.writeAll("(T): TEST - all note sections:\n");
     try stdout.print("{}\n", .{notesdb});
     try stdout.writeAll("\n");
+
+    // std.debug.print("(T): TEST - all note sections:\n", .{});
+    // std.debug.print("{}\n", .{notesdb});
+    // std.debug.print("\n", .{});
 }

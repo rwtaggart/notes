@@ -31,7 +31,10 @@ const HELP_MESSAGE =
 ;
 
 const std = @import("std");
+const Log = @import("log.zig");
+
 const maxInt = std.math.maxInt;
+const logger = Log.Log(.options);
 
 pub const ArgParseError = error{
     MissingRequiredArguments,
@@ -66,8 +69,8 @@ pub const Opts = struct {
 
     // parseArgsErrMsg: ?[]const u8 = null,
     fn printMissingOptionArg(s: []const u8) !void {
-        const stderr = std.io.getStdOut().writer();
-        try stderr.print(
+        // const stderr = std.io.getStdOut().writer();
+        logger.err(
             \\(E): Missing required argument for option: {s}
             \\     See --help for expected usage.
             \\
@@ -75,8 +78,9 @@ pub const Opts = struct {
     }
 
     fn printTooManyArguments(s: [][]const u8) !void {
-        const stderr = std.io.getStdOut().writer();
-        try stderr.print(
+        // const stderr = std.io.getStdOut().writer();
+        // try stderr.print(
+        logger.err(
             \\(E): Too many positional arguments provided: "{s}"
             \\     See --help for expected usage.
             \\
@@ -84,8 +88,9 @@ pub const Opts = struct {
     }
 
     fn printNotSupportedOptionArg(s: []const u8) !void {
-        const stderr = std.io.getStdOut().writer();
-        try stderr.print(
+        // const stderr = std.io.getStdOut().writer();
+        // try stderr.print(
+        logger.err(
             \\(E): Option or argument is not yet supported: {s}
             \\     See --help for expected usage.
             \\
@@ -131,9 +136,9 @@ pub const Opts = struct {
     }
 
     fn checkArgValue(arg: []const u8) !void {
-        const stderr = std.io.getStdErr().writer();
+        // const stderr = std.io.getStdErr().writer();
         if (std.mem.eql(u8, arg, "") or arg[0] == '-') {
-            try stderr.print("(W): Invalid option or positional argument value '{s}'.\n     Use '--force' to use this as a section name, option value, or note contents.\n", .{arg});
+            logger.warn("(W): Invalid option or positional argument value '{s}'.\n     Use '--force' to use this as a section name, option value, or note contents.\n", .{arg});
             return ArgParseError.InvalidOption;
         }
     }
@@ -152,7 +157,7 @@ pub const Opts = struct {
         // FIXME: How do we handle a "missing" argument with a following valid option?  => DONE ?
         // TODO: move gpa => self.gpa as struct attibute
         const stdout = std.io.getStdOut().writer();
-        const stderr = std.io.getStdOut().writer();
+        // const stderr = std.io.getStdOut().writer();
         self.args = std.ArrayList([]const u8).init(gpa);
 
         var argIdx: u8 = 1;
@@ -194,7 +199,7 @@ pub const Opts = struct {
                 self.show_note = parseU16(args[argIdx]) catch |err| {
                     switch (err) {
                         ArgParseError.InvalidNumber, ArgParseError.NumberOverflow => {
-                            try stderr.print("(E): Invalid entry index value: '{s}'\n", .{args[argIdx]});
+                            logger.err("(E): Invalid entry index value: '{s}'\n", .{args[argIdx]});
                             return err;
                         },
                         else => return err,
@@ -212,7 +217,7 @@ pub const Opts = struct {
                 self.update = parseU16(args[argIdx]) catch |err| {
                     switch (err) {
                         ArgParseError.InvalidNumber, ArgParseError.NumberOverflow => {
-                            try stderr.print("(E): Invalid entry index value: '{s}'\n", .{args[argIdx]});
+                            logger.err("(E): Invalid entry index value: '{s}'\n", .{args[argIdx]});
                             return err;
                         },
                         else => return err,
@@ -230,7 +235,7 @@ pub const Opts = struct {
                 self.delete = parseU16(args[argIdx]) catch |err| {
                     switch (err) {
                         ArgParseError.InvalidNumber, ArgParseError.NumberOverflow => {
-                            try stderr.print("(E): Invalid entry index value: '{s}'\n", .{args[argIdx]});
+                            logger.err("(E): Invalid entry index value: '{s}'\n", .{args[argIdx]});
                             return err;
                         },
                         else => return err,
@@ -331,8 +336,8 @@ pub const Opts = struct {
 test "handle option with missing required argument" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
-    const stderr = std.io.getStdErr().writer();
-    const stdout = std.io.getStdOut().writer();
+    // const stderr = std.io.getStdErr().writer();
+    // const stdout = std.io.getStdOut().writer();
     // const args_str: [][]u8 = &.{"--note"};
     var args_str = std.ArrayList([]u8).init(test_alloc);
     try args_str.append(try test_alloc.dupe(u8, "")); // Shift for program name
@@ -351,7 +356,7 @@ test "handle option with missing required argument" {
         switch (err) {
             ArgParseError.ExpectedOptionArgument => {
                 pass = true;
-                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
             },
             ArgParseError.MissingRequiredArguments,
             ArgParseError.TooManyArguments,
@@ -360,7 +365,7 @@ test "handle option with missing required argument" {
             ArgParseError.NumberOverflow,
             => return error.UnexpectedParseError,
             else => {
-                try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
+                logger.err("(E): Encountered unknown error: '{}'\n", .{err});
                 // std.process.exit(1);
                 return error.UnexpectedValue;
             },
@@ -372,8 +377,8 @@ test "handle option with missing required argument" {
 test "handle option with incorrect required argument" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
-    const stderr = std.io.getStdErr().writer();
-    const stdout = std.io.getStdOut().writer();
+    // const stderr = std.io.getStdErr().writer();
+    // const stdout = std.io.getStdOut().writer();
     // const args_str: [][]u8 = &.{"--note"};
     var args_str = std.ArrayList([]u8).init(test_alloc);
     try args_str.append(try test_alloc.dupe(u8, "")); // Shift for program name
@@ -393,7 +398,7 @@ test "handle option with incorrect required argument" {
         switch (err) {
             ArgParseError.InvalidNumber => {
                 pass = true;
-                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
             },
             ArgParseError.ExpectedOptionArgument,
             ArgParseError.MissingRequiredArguments,
@@ -402,7 +407,7 @@ test "handle option with incorrect required argument" {
             ArgParseError.NumberOverflow,
             => return error.UnexpectedParseError,
             else => {
-                try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
+                logger.err("(E): Encountered unknown error: '{}'\n", .{err});
                 // std.process.exit(1);
                 return error.UnexpectedValue;
             },
@@ -414,7 +419,7 @@ test "handle option with incorrect required argument" {
 test "handle option with correct required argument" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
-    const stderr = std.io.getStdErr().writer();
+    // const stderr = std.io.getStdErr().writer();
     // const stdout = std.io.getStdOut().writer();
     // const args_str: [][]u8 = &.{"--note"};
     var args_str = std.ArrayList([]u8).init(test_alloc);
@@ -440,7 +445,7 @@ test "handle option with correct required argument" {
             ArgParseError.NumberOverflow,
             => return error.UnexpectedParseError,
             else => {
-                try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
+                logger.err("(E): Encountered unknown error: '{}'\n", .{err});
                 // std.process.exit(1);
                 return error.UnexpectedValue;
             },
@@ -452,8 +457,8 @@ test "handle option with correct required argument" {
 test "handle update option with missing required argument" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
-    const stderr = std.io.getStdErr().writer();
-    const stdout = std.io.getStdOut().writer();
+    // const stderr = std.io.getStdErr().writer();
+    // const stdout = std.io.getStdOut().writer();
     // const args_str: [][]u8 = &.{"--note"};
     var args_str = std.ArrayList([]u8).init(test_alloc);
     try args_str.append(try test_alloc.dupe(u8, "")); // Shift for program name
@@ -474,7 +479,7 @@ test "handle update option with missing required argument" {
         switch (err) {
             ArgParseError.MissingRequiredArguments => {
                 pass = true;
-                try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
+                // try stdout.writeAll("(T): ^^^ Expecting 1 error message ^^^.\n");
             },
             ArgParseError.InvalidNumber,
             ArgParseError.ExpectedOptionArgument,
@@ -483,7 +488,7 @@ test "handle update option with missing required argument" {
             ArgParseError.NumberOverflow,
             => return error.UnexpectedParseError,
             else => {
-                try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
+                logger.err("(E): Encountered unknown error: '{}'\n", .{err});
                 // std.process.exit(1);
                 return error.UnexpectedValue;
             },
@@ -495,7 +500,7 @@ test "handle update option with missing required argument" {
 test "handle update option with correct required argument" {
     const expect = std.testing.expect;
     const test_alloc = std.testing.allocator;
-    const stderr = std.io.getStdErr().writer();
+    // const stderr = std.io.getStdErr().writer();
     // const stdout = std.io.getStdOut().writer();
     // const args_str: [][]u8 = &.{"--note"};
     var args_str = std.ArrayList([]u8).init(test_alloc);
@@ -523,7 +528,7 @@ test "handle update option with correct required argument" {
             ArgParseError.NumberOverflow,
             => return error.UnexpectedParseError,
             else => {
-                try stderr.print("(E): Encountered unknown error: '{}'\n", .{err});
+                logger.err("(E): Encountered unknown error: '{}'\n", .{err});
                 // std.process.exit(1);
                 return error.UnexpectedValue;
             },

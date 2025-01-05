@@ -15,6 +15,31 @@ const noteOpts = @import("opts.zig");
 const notesJson = @import("notes_json.zig");
 const db = @import("sqlite_db.zig");
 
+// TODO: Add custom logging
+//       write custom logging function for printing errors to the terminal
+//
+// const std_options {
+//   .logFn = noteLogFn;
+// }
+//
+// pub fn noteLogFn(
+//     comptime level: std.log.Level,
+//     comptime scope: @TypeOf(.EnumLiteral),
+//     comptime format: []const u8,
+//     args: anytype,
+// ) void {
+//     // Create custom format for errors and warnings
+//     // Use the default logging method for everything else.
+//
+//     // TODO: ADD CODE HERE
+//
+//     // Print the message to stderr, silently ignoring any errors
+//     std.debug.lockStdErr();
+//     defer std.debug.unlockStdErr();
+//     const stderr = std.io.getStdErr().writer();
+//     nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+// }
+
 pub fn main() !void {
     const alloc = std.heap.page_allocator;
     const stdout = std.io.getStdOut().writer();
