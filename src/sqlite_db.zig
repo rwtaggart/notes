@@ -134,6 +134,7 @@ const NotesSql = struct {
 
     // add_note: [:0]const u8 = "INSERT INTO notes VALUES ({d}, '{s}', NULL, '{s}');",
     add_note: [:0]const u8 = "INSERT INTO notes VALUES (?1, ?2, NULL, ?3);",
+    // FIXME: use parameter bindings for input with update_note. See add_note bind_int().
     update_note: [:0]const u8 = "UPDATE notes SET note = '{s}' WHERE notes.recordId == {d};",
     delete_note: [:0]const u8 = "DELETE FROM notes WHERE recordId == {d};",
 
