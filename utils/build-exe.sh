@@ -9,8 +9,13 @@
 # NOTE: RUN FROM PROJECT ROOT DIRECTORY
 
 # Download dependencies
-if [ -z "./c-includes/sqlite-amalgamation-346100.zip" ]; then
+if [[ ! -e './c-includes' ]]; then
   echo '(I): creating "c-includes" directory.'
+  mkdir './c-includes';
+fi
+
+if [[ ! -e "./c-includes/sqlite-amalgamation-346100.zip" ]]; then
+  echo '(I): downloading dependency source files'
   cd c-includes;
   wget https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip;
   unzip sqlite-amalgamation-3460100.zip;
@@ -18,7 +23,7 @@ if [ -z "./c-includes/sqlite-amalgamation-346100.zip" ]; then
 fi
 
 # Compile C-dependencies
-if [ -z "./c-includes/sqlite-amalgamation-346100/libsqlite3.a" ]; then
+if [[ ! -e "./c-includes/sqlite-amalgamation-346100/libsqlite3.a" ]]; then
   echo '(I): compile c-libs'
   cd c-includes;
   cd sqlite-amalgamation-3460100;
