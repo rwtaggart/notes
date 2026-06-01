@@ -2,10 +2,13 @@
 Simple command-line notes app
 
 # Install
-1. Create personal `lib` and `bin` directories
+**Required Dependencies**  
+This project requires `zig`: follow [these instructions](docs/ZIG-INSTALL.md) to download and install `zig 0.13.0`.
+
+1. Create personal `lib` and `bin` as subdirectories of `.local`
     ```sh
-    mkdir $HOME/lib;
-    mkdir $HOME/bin;
+    mkdir -p $HOME/.local/lib;
+    mkdir -p $HOME/.local/bin;
     ```
 
 1. Clone the repo and link it up
@@ -17,7 +20,7 @@ Simple command-line notes app
 1. Build the binary
     ```sh
     cd $HOME/lib/notes;
-    zig build -Doptimize=ReleaseSafe -DuseHome;
+    ./utils/build-exe.sh
     ```
 
 # Dependencies
@@ -26,6 +29,14 @@ Name | URL
 Zig | [https://ziglang.org/](https://ziglang.org/)
 SQLite | [https://www.sqlite.org/cintro.html](https://www.sqlite.org/cintro.html)
 
+
+# Developer Notes
+Other notes of things required for development.
+
+### zig build
+```sh
+    zig build -Doptimize=ReleaseSafe -DuseHome;
+```
 
 ### Build Dependencies
 `zig build` manages the external C dependencies for us. `./build.zig.zon` was configured with:
